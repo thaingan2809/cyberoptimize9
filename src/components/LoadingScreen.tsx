@@ -47,11 +47,20 @@ export default function LoadingScreen({ onEnter }: { onEnter: () => void }) {
 
         target = Math.min(100, target + inc);
 
-        if (target < 35) nextDelay = 55 + Math.random() * 70;
-        else if (target < 50) nextDelay = 260 + Math.random() * 320;
-        else if (target < 72) nextDelay = 80 + Math.random() * 120;
-        else if (target < 78) nextDelay = 420 + Math.random() * 380;
-        else nextDelay = 60 + Math.random() * 100;
+       if (target < 35)
+    nextDelay = 50 + Math.random() * 63;
+
+else if (target < 50)
+    nextDelay = 235 + Math.random() * 288;
+
+else if (target < 72)
+    nextDelay = 72 + Math.random() * 108;
+
+else if (target < 78)
+    nextDelay = 378 + Math.random() * 342;
+
+else
+    nextDelay = 54 + Math.random() * 90;
       }
 
       current += (target - current) * 0.20;
