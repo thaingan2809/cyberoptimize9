@@ -51,7 +51,7 @@ const STATUS_INDICATORS = [
   { text: 'CONNECTED', x: 93, y: 64, blink: false },
 ];
 
-const BG_IMAGE = 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11495465-cyberpunk-edgerunner-hd-wallpapers.webp';
+const BG_IMAGE = 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp14146075-cyberpunk-edgerunners-desktop-wallpapers.webp?updatedAt=1785235621645';
 
 export default function CyberpsychoMeter() {
   const [level, setLevel] = useState(0);
