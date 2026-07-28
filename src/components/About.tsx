@@ -124,7 +124,7 @@ export default function About() {
   }}
 >
   <source
-   src="https://cdn-cf-east.streamable.com/video/mp4/jb3r6e.mp4?Expires=1785420687364&Key-Pair-Id=APKAIEYUVEN4EVB2OKEQ&Signature=JroWPey04vwvKiPQbw3ZF1poMn3N8l7oa2adZMiO~55n48-3KTuSeuEh3KXft40e~U54ERdNPlsZkSFTVz5tlNJr42LTFIk7UwfW4Bi84X11~S0MDNwVgYGqwunvlZ6x-D5BKzgBIsrH4tHhvvdACf~kzlUS-q~YIGoVC1Lcbs73A012shw30HR8iCVZ5AQb87rssOMjREW4ipxYkG5cj6Epz5WvUG2oXprF0oDw6pyvLrX746tc92XCdkxtdPin0UORaMuKy1VVnDYUvDToZsthjqJ3-iW-t57K2O~NqGpdApHEFUORH0k~9TWU6yU55xYCRgT5WE5CceU5ZVBtcg__"
+   src="https://cdn-cf-east.streamable.com/video/mp4/j6f5td.mp4?Expires=1785514637190&Key-Pair-Id=APKAIEYUVEN4EVB2OKEQ&Signature=aF~rbxqn6-C1wOct4gTc374ZNx8BYLWjsRSSD3euKSQ94o9eVfGNW1LUBatnclfrY8mSi4GoGsTrkuQhwywRD94NT8GBGOf9dyDuNeeXn0aFAw~QjdZ4s6mdfM7oAeEO6u8r9wht7kzKhDIzTNq5pXL6fcQmo64V5dhCPF01iVMrfL83yLXpOW98QnYfAFpx2z2OcjkqX~VvgD4huJjyS8-t39Nbl0xrB18CyvqCVn-QPTsEVW4bK8rx0zNsM9rYryGjx4pIPRgDWI~HrnNDrhr3wdqPUmD5jE3bDNR6keS0xD2gDXykOMNHGUb0f3YEVOu7L8KJvNo0~nCS5gnPxg__"
     type="video/mp4"
   />
 </video>
