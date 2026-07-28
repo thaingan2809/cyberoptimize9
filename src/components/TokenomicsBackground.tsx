@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 const BG_IMAGE =
-  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11495464-edgerunners-wallpapers.webp?updatedAt=1785220973371';
+  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11539455-cyberpunk-edgerunner-desktop-wallpapers.webp';
 
 export default function TokenomicsBackground() {
   const rootRef = useRef<HTMLDivElement>(null);
