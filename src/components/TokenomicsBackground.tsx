@@ -1,5 +1,5 @@
 const BG_IMAGE =
-  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11495456.webp?updatedAt=1785222342171';
+  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11495540.webp?updatedAt=1785220974249';
 
 export default function TokenomicsBackground() {
   return (
