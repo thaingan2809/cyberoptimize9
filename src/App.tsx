@@ -29,11 +29,11 @@ export default function App() {
     <HeroTimelineProvider>
     <div className="relative min-h-screen">
       <TargetCursor
-        spinDuration={4}
+        spinDuration={2}
         hideDefaultCursor
         parallaxOn
         hoverDuration={0.2}
-        cursorColor="#FFFFFF"
+        cursorColor="#ffffff"
         cursorColorOnTarget="#B497CF"
       />
       {!booted && <LoadingScreen onEnter={() => setBooted(true)} />}

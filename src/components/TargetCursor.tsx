@@ -1,15 +1,48 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { gsap } from 'gsap';
 
-const HOVER_SOUND =
-  'https://ik.imagekit.io/zznoau6lx/mixkit-sci-fi-interface-zoom-890.mp3?updatedAt=1785183860410';
+// A position: fixed element is positioned relative to the viewport UNLESS an
+// ancestor establishes a containing block (transform, perspective, filter,
+// will-change of those, or contain). When that happens, the cursor's translate
+// no longer maps to viewport coordinates, so we measure and compensate for it.
+const getContainingBlock = (element: HTMLElement | null): HTMLElement | null => {
+  let node = element?.parentElement ?? null;
+  while (node && node !== document.documentElement) {
+    const style = getComputedStyle(node);
+    if (
+      style.transform !== 'none' ||
+      style.perspective !== 'none' ||
+      style.filter !== 'none' ||
+      style.willChange.includes('transform') ||
+      style.willChange.includes('perspective') ||
+      style.willChange.includes('filter') ||
+      /paint|layout|strict|content/.test(style.contain)
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+};
 
-const SPIN_DURATION = 4;
-const HOVER_DURATION = 0.18;
-const CURSOR_COLOR = '#FFFFFF';
-const CURSOR_COLOR_ON_TARGET = '#B497CF';
+const getContainingBlockOffset = (block: HTMLElement | null): { x: number; y: number } => {
+  if (!block) return { x: 0, y: 0 };
+  const rect = block.getBoundingClientRect();
+  return { x: rect.left + block.clientLeft, y: rect.top + block.clientTop };
+};
 
-const TARGET_SELECTOR = [
+export interface TargetCursorProps {
+  targetSelector?: string;
+  spinDuration?: number;
+  hideDefaultCursor?: boolean;
+  hoverDuration?: number;
+  parallaxOn?: boolean;
+  cursorColor?: string;
+  cursorColorOnTarget?: string;
+}
+
+// Interactive targets already treated as interactive in this project.
+const DEFAULT_TARGET_SELECTOR = [
   'a',
   'button',
   '[role="button"]',
@@ -21,317 +54,369 @@ const TARGET_SELECTOR = [
   '[data-cursor-target]',
 ].join(',');
 
-interface TargetCursorProps {
-  spinDuration?: number;
-  hideDefaultCursor?: boolean;
-  parallaxOn?: boolean;
-  hoverDuration?: number;
-  cursorColor?: string;
-  cursorColorOnTarget?: string;
-}
+const SPIN_DURATION = 2;
+const HOVER_DURATION = 0.2;
+const CURSOR_COLOR = '#ffffff';
+const CURSOR_COLOR_ON_TARGET = '#B497CF';
 
-const RETICLE_HALF = 14;    // px — half-size of bracket box
-const BRACKET_ARM = 8;      // px — arm length
-const BRACKET_TH  = 1.5;    // px — stroke
-const HOV_ARM     = 12;     // px — hover bracket arm length
-const HOV_PAD     = 10;     // px — padding around hovered element
-
-export default function TargetCursor({
-  spinDuration      = SPIN_DURATION,
+const TargetCursor: React.FC<TargetCursorProps> = ({
+  targetSelector = DEFAULT_TARGET_SELECTOR,
+  spinDuration = SPIN_DURATION,
   hideDefaultCursor = true,
-  parallaxOn        = true,
-  hoverDuration     = HOVER_DURATION,
-  cursorColor       = CURSOR_COLOR,
+  hoverDuration = HOVER_DURATION,
+  parallaxOn = true,
+  cursorColor = CURSOR_COLOR,
   cursorColorOnTarget = CURSOR_COLOR_ON_TARGET,
-}: TargetCursorProps) {
-  // Layer 1: translate(x,y) ONLY
-  const wrapperRef  = useRef<HTMLDivElement>(null);
-  // Layer 2: rotate() ONLY
-  const innerRef    = useRef<HTMLDivElement>(null);
-  // Layer 3: scale() ONLY (click feedback)
-  const graphicRef  = useRef<HTMLDivElement>(null);
+}) => {
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const cornersRef = useRef<NodeListOf<HTMLDivElement> | null>(null);
+  const spinTl = useRef<gsap.core.Timeline | null>(null);
+  const dotRef = useRef<HTMLDivElement>(null);
+  const containingBlockRef = useRef<HTMLElement | null>(null);
 
-  // Hover bracket corners — four individual spans
-  const hTLRef = useRef<HTMLSpanElement>(null);
-  const hTRRef = useRef<HTMLSpanElement>(null);
-  const hBLRef = useRef<HTMLSpanElement>(null);
-  const hBRRef = useRef<HTMLSpanElement>(null);
+  const isActiveRef = useRef(false);
+  const targetCornerPositionsRef = useRef<{ x: number; y: number }[] | null>(null);
+  const tickerFnRef = useRef<(() => void) | null>(null);
+  const activeStrengthRef = useRef({ current: 0 });
+
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isSmallScreen = window.innerWidth <= 768;
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+    const isMobileUserAgent = mobileRegex.test(userAgent.toLowerCase());
+    return (hasTouchScreen && isSmallScreen) || isMobileUserAgent;
+  }, []);
+
+  const constants = useMemo(() => ({ borderWidth: 3, cornerSize: 12 }), []);
+
+  const moveCursor = useCallback((x: number, y: number) => {
+    if (!cursorRef.current) return;
+    const { x: offsetX, y: offsetY } = getContainingBlockOffset(containingBlockRef.current);
+    gsap.to(cursorRef.current, { x: x - offsetX, y: y - offsetY, duration: 0.1, ease: 'power3.out' });
+  }, []);
 
   useEffect(() => {
-    const isTouch =
-      window.matchMedia('(pointer: coarse)').matches ||
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0;
-    if (isTouch) return;
+    if (isMobile || !cursorRef.current) return;
 
-    const wrapper  = wrapperRef.current;
-    const inner    = innerRef.current;
-    const graphic  = graphicRef.current;
-    const hTL = hTLRef.current;
-    const hTR = hTRRef.current;
-    const hBL = hBLRef.current;
-    const hBR = hBRRef.current;
-    if (!wrapper || !inner || !graphic || !hTL || !hTR || !hBL || !hBR) return;
+    const originalCursor = document.body.style.cursor;
+    if (hideDefaultCursor) {
+      document.body.style.cursor = 'none';
+    }
 
-    if (hideDefaultCursor) document.documentElement.style.cursor = 'none';
+    const cursor = cursorRef.current;
+    cornersRef.current = cursor.querySelectorAll<HTMLDivElement>('.target-cursor-corner');
 
-    // ── Audio — preload once, reuse ───────────────────────────────────
-    const audio = new Audio(HOVER_SOUND);
-    audio.preload = 'auto';
-    audio.volume  = 0.25;
+    containingBlockRef.current = getContainingBlock(cursor);
+    const getOffset = () => getContainingBlockOffset(containingBlockRef.current);
 
-    // ── Mouse tracking ────────────────────────────────────────────────
-    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    const pos   = { x: mouse.x, y: mouse.y };
+    let activeTarget: Element | null = null;
+    let currentLeaveHandler: (() => void) | null = null;
+    let resumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const onMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-    window.addEventListener('mousemove', onMove, { passive: true });
-
-    const onLeave = () => gsap.to(wrapper, { autoAlpha: 0, duration: 0.2 });
-    const onEnter = () => gsap.to(wrapper, { autoAlpha: 1, duration: 0.2 });
-    document.addEventListener('mouseleave', onLeave);
-    document.addEventListener('mouseenter', onEnter);
-
-    // RAF loop — lerp factor 0.55 → ~92% real-time, barely-there smoothing
-    let raf = 0;
-    const loop = () => {
-      pos.x += (mouse.x - pos.x) * 0.55;
-      pos.y += (mouse.y - pos.y) * 0.55;
-
-      // Optional tiny parallax offset (does NOT add more lag — computed from
-      // the already-converged pos, not from a secondary lerp chain)
-      let px = 0, py = 0;
-      if (parallaxOn) {
-        px = (mouse.x - pos.x) * 0.04;
-        py = (mouse.y - pos.y) * 0.04;
+    const cleanupTarget = (target: Element) => {
+      if (currentLeaveHandler) {
+        target.removeEventListener('mouseleave', currentLeaveHandler);
       }
-
-      gsap.set(wrapper, { x: pos.x + px, y: pos.y + py });
-      raf = requestAnimationFrame(loop);
+      currentLeaveHandler = null;
     };
-    raf = requestAnimationFrame(loop);
 
-    // ── Rotation ──────────────────────────────────────────────────────
-    const spin = gsap.to(inner, {
-      rotation: '+=360',
-      duration: spinDuration,
-      ease: 'none',
-      repeat: -1,
-      transformOrigin: '50% 50%',
+    const initialOffset = getOffset();
+    gsap.set(cursor, {
+      xPercent: -50,
+      yPercent: -50,
+      x: window.innerWidth / 2 - initialOffset.x,
+      y: window.innerHeight / 2 - initialOffset.y,
     });
 
-    // ── Click — scale graphic only ────────────────────────────────────
-    const onDown = () => {
-      gsap.to(graphic, {
-        scale: 0.85,
-        duration: 0.08,
-        ease: 'power2.out',
-        onComplete: () =>
-          gsap.to(graphic, { scale: 1, duration: 0.15, ease: 'back.out(2)' }),
+    const createSpinTimeline = () => {
+      if (spinTl.current) {
+        spinTl.current.kill();
+      }
+      spinTl.current = gsap
+        .timeline({ repeat: -1 })
+        .to(cursor, { rotation: '+=360', duration: spinDuration, ease: 'none' });
+    };
+
+    createSpinTimeline();
+
+    const tickerFn = () => {
+      if (!targetCornerPositionsRef.current || !cursorRef.current || !cornersRef.current) {
+        return;
+      }
+      const strength = activeStrengthRef.current.current;
+      if (strength === 0) return;
+      const cursorX = gsap.getProperty(cursorRef.current, 'x') as number;
+      const cursorY = gsap.getProperty(cursorRef.current, 'y') as number;
+      const corners = Array.from(cornersRef.current);
+      corners.forEach((corner, i) => {
+        const currentX = gsap.getProperty(corner, 'x') as number;
+        const currentY = gsap.getProperty(corner, 'y') as number;
+        const targetX = targetCornerPositionsRef.current![i].x - cursorX;
+        const targetY = targetCornerPositionsRef.current![i].y - cursorY;
+        const finalX = currentX + (targetX - currentX) * strength;
+        const finalY = currentY + (targetY - currentY) * strength;
+        const duration = strength >= 0.99 ? (parallaxOn ? 0.2 : 0) : 0.05;
+        gsap.to(corner, {
+          x: finalX,
+          y: finalY,
+          duration: duration,
+          ease: duration === 0 ? 'none' : 'power1.out',
+          overwrite: 'auto',
+        });
       });
     };
-    window.addEventListener('mousedown', onDown);
 
-    // ── Color helper ──────────────────────────────────────────────────
-    const setColor = (color: string) => {
-      // cursor brackets
-      graphic.querySelectorAll<HTMLSpanElement>('span').forEach((s) => {
-        s.style.borderColor = color;
-        s.style.boxShadow   = `0 0 5px ${color}66`;
+    tickerFnRef.current = tickerFn;
+
+    const moveHandler = (e: MouseEvent) => moveCursor(e.clientX, e.clientY);
+    window.addEventListener('mousemove', moveHandler);
+
+    const scrollHandler = () => {
+      if (!activeTarget || !cursorRef.current) return;
+      const { x: offsetX, y: offsetY } = getOffset();
+      const mouseX = (gsap.getProperty(cursorRef.current, 'x') as number) + offsetX;
+      const mouseY = (gsap.getProperty(cursorRef.current, 'y') as number) + offsetY;
+      const elementUnderMouse = document.elementFromPoint(mouseX, mouseY);
+      const isStillOverTarget =
+        elementUnderMouse &&
+        (elementUnderMouse === activeTarget || elementUnderMouse.closest(targetSelector) === activeTarget);
+      if (!isStillOverTarget) {
+        currentLeaveHandler?.();
+      }
+    };
+    window.addEventListener('scroll', scrollHandler, { passive: true });
+
+    const mouseDownHandler = () => {
+      if (!dotRef.current) return;
+      gsap.to(dotRef.current, { scale: 0.7, duration: 0.3 });
+      gsap.to(cursorRef.current, { scale: 0.9, duration: 0.2 });
+    };
+
+    const mouseUpHandler = () => {
+      if (!dotRef.current) return;
+      gsap.to(dotRef.current, { scale: 1, duration: 0.3 });
+      gsap.to(cursorRef.current, { scale: 1, duration: 0.2 });
+    };
+
+    window.addEventListener('mousedown', mouseDownHandler);
+    window.addEventListener('mouseup', mouseUpHandler);
+
+    const enterHandler = (e: MouseEvent) => {
+      const directTarget = e.target as Element;
+      const allTargets: Element[] = [];
+      let current: Element | null = directTarget;
+      while (current && current !== document.body) {
+        if (current.matches(targetSelector)) {
+          allTargets.push(current);
+        }
+        current = current.parentElement;
+      }
+      const target = allTargets[0] || null;
+      if (!target || !cursorRef.current || !cornersRef.current) return;
+      if (activeTarget === target) return;
+      if (activeTarget) {
+        cleanupTarget(activeTarget);
+      }
+      if (resumeTimeout) {
+        clearTimeout(resumeTimeout);
+        resumeTimeout = null;
+      }
+
+      activeTarget = target;
+      const corners = Array.from(cornersRef.current);
+      corners.forEach((corner) => gsap.killTweensOf(corner, 'x,y'));
+      gsap.killTweensOf(cursorRef.current, 'rotation');
+      spinTl.current?.pause();
+      gsap.set(cursorRef.current, { rotation: 0 });
+
+      if (cursorColorOnTarget) {
+        gsap.to(corners, {
+          borderColor: cursorColorOnTarget,
+          duration: 0.15,
+          ease: 'power2.out',
+        });
+        if (dotRef.current) {
+          gsap.to(dotRef.current, {
+            backgroundColor: cursorColorOnTarget,
+            duration: 0.15,
+            ease: 'power2.out',
+          });
+        }
+      }
+
+      const rect = target.getBoundingClientRect();
+      const { borderWidth, cornerSize } = constants;
+      const { x: offsetX, y: offsetY } = getOffset();
+      const cursorX = gsap.getProperty(cursorRef.current, 'x') as number;
+      const cursorY = gsap.getProperty(cursorRef.current, 'y') as number;
+
+      targetCornerPositionsRef.current = [
+        { x: rect.left - borderWidth - offsetX, y: rect.top - borderWidth - offsetY },
+        { x: rect.right + borderWidth - cornerSize - offsetX, y: rect.top - borderWidth - offsetY },
+        { x: rect.right + borderWidth - cornerSize - offsetX, y: rect.bottom + borderWidth - cornerSize - offsetY },
+        { x: rect.left - borderWidth - offsetX, y: rect.bottom + borderWidth - cornerSize - offsetY },
+      ];
+
+      isActiveRef.current = true;
+      gsap.ticker.add(tickerFnRef.current!);
+
+      gsap.to(activeStrengthRef.current, { current: 1, duration: hoverDuration, ease: 'power2.out' });
+
+      corners.forEach((corner, i) => {
+        gsap.to(corner, {
+          x: targetCornerPositionsRef.current![i].x - cursorX,
+          y: targetCornerPositionsRef.current![i].y - cursorY,
+          duration: 0.2,
+          ease: 'power2.out',
+        });
       });
-      const dot = graphic.querySelector<HTMLSpanElement>('.tc-dot');
-      if (dot) { dot.style.background = color; dot.style.boxShadow = `0 0 5px ${color}`; }
-      // hover brackets
-      [hTL, hTR, hBL, hBR].forEach((s) => {
-        s.style.borderColor = color;
-        s.style.boxShadow   = `0 0 7px ${color}99`;
-      });
+
+      const leaveHandler = () => {
+        gsap.ticker.remove(tickerFnRef.current!);
+        isActiveRef.current = false;
+        targetCornerPositionsRef.current = null;
+        gsap.set(activeStrengthRef.current, { current: 0, overwrite: true });
+        activeTarget = null;
+
+        if (cursorColorOnTarget && cornersRef.current) {
+          gsap.to(Array.from(cornersRef.current), {
+            borderColor: cursorColor,
+            duration: 0.15,
+            ease: 'power2.out',
+          });
+          if (dotRef.current) {
+            gsap.to(dotRef.current, {
+              backgroundColor: cursorColor,
+              duration: 0.15,
+              ease: 'power2.out',
+            });
+          }
+        }
+
+        if (cornersRef.current) {
+          const corners = Array.from(cornersRef.current);
+          gsap.killTweensOf(corners, 'x,y');
+          const { cornerSize } = constants;
+          const positions = [
+            { x: -cornerSize * 1.5, y: -cornerSize * 1.5 },
+            { x: cornerSize * 0.5, y: -cornerSize * 1.5 },
+            { x: cornerSize * 0.5, y: cornerSize * 0.5 },
+            { x: -cornerSize * 1.5, y: cornerSize * 0.5 },
+          ];
+          const tl = gsap.timeline();
+          corners.forEach((corner, index) => {
+            tl.to(corner, { x: positions[index].x, y: positions[index].y, duration: 0.3, ease: 'power3.out' }, 0);
+          });
+        }
+        resumeTimeout = setTimeout(() => {
+          if (!activeTarget && cursorRef.current && spinTl.current) {
+            const currentRotation = gsap.getProperty(cursorRef.current, 'rotation') as number;
+            const normalizedRotation = currentRotation % 360;
+            spinTl.current.kill();
+            spinTl.current = gsap
+              .timeline({ repeat: -1 })
+              .to(cursorRef.current, { rotation: '+=360', duration: spinDuration, ease: 'none' });
+            gsap.to(cursorRef.current, {
+              rotation: normalizedRotation + 360,
+              duration: spinDuration * (1 - normalizedRotation / 360),
+              ease: 'none',
+              onComplete: () => {
+                spinTl.current?.restart();
+              },
+            });
+          }
+          resumeTimeout = null;
+        }, 50);
+        cleanupTarget(target);
+      };
+      currentLeaveHandler = leaveHandler;
+      target.addEventListener('mouseleave', leaveHandler);
     };
 
-    // ── Hover bracket animation ───────────────────────────────────────
-    // Each span is positioned absolute relative to the viewport (fixed).
-    // We animate their left/top so each corner bracket sits at the correct
-    // corner of the target's bounding box.
-    const showBrackets = (rect: DOMRect) => {
-      const left   = rect.left   - HOV_PAD;
-      const top    = rect.top    - HOV_PAD;
-      const right  = rect.right  + HOV_PAD - HOV_ARM;
-      const bottom = rect.bottom + HOV_PAD - HOV_ARM;
+    window.addEventListener('mouseover', enterHandler as EventListener);
 
-      const opts = { duration: hoverDuration, ease: 'power3.out' };
-
-      gsap.to(hTL, { left, top,    opacity: 1, ...opts });
-      gsap.to(hTR, { left: right, top,    opacity: 1, ...opts });
-      gsap.to(hBL, { left, top: bottom,    opacity: 1, ...opts });
-      gsap.to(hBR, { left: right, top: bottom, opacity: 1, ...opts });
+    const resizeHandler = () => {
+      containingBlockRef.current = getContainingBlock(cursor);
     };
-
-    const hideBrackets = () => {
-      const opts = { opacity: 0, duration: hoverDuration, ease: 'power2.out' };
-      gsap.to([hTL, hTR, hBL, hBR], opts);
-    };
-
-    // ── Hover detection ───────────────────────────────────────────────
-    let activeTarget: Element | null = null;
-
-    const onOver = (e: Event) => {
-      const el = (e.target as Element | null)?.closest?.(TARGET_SELECTOR) as HTMLElement | null;
-      if (!el || el === activeTarget) return;
-      activeTarget = el;
-
-      showBrackets(el.getBoundingClientRect());
-      spin.pause();
-      setColor(cursorColorOnTarget);
-
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-    };
-
-    const onOut = (e: Event) => {
-      const el = (e.target as Element | null)?.closest?.(TARGET_SELECTOR) as HTMLElement | null;
-      if (!el || el !== activeTarget) return;
-      // ignore if mouse moved to a child of the same target
-      const related = (e as MouseEvent).relatedTarget as Element | null;
-      if (related && el.contains(related)) return;
-      activeTarget = null;
-
-      hideBrackets();
-      spin.resume();
-      setColor(cursorColor);
-    };
-
-    document.addEventListener('mouseover', onOver, { passive: true });
-    document.addEventListener('mouseout',  onOut,  { passive: true });
+    window.addEventListener('resize', resizeHandler);
 
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mousedown', onDown);
-      document.removeEventListener('mouseleave', onLeave);
-      document.removeEventListener('mouseenter', onEnter);
-      document.removeEventListener('mouseover', onOver);
-      document.removeEventListener('mouseout',  onOut);
-      cancelAnimationFrame(raf);
-      spin.kill();
-      if (hideDefaultCursor) document.documentElement.style.cursor = '';
+      if (tickerFnRef.current) {
+        gsap.ticker.remove(tickerFnRef.current);
+      }
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('mouseover', enterHandler as EventListener);
+      window.removeEventListener('scroll', scrollHandler);
+      window.removeEventListener('resize', resizeHandler);
+      window.removeEventListener('mousedown', mouseDownHandler);
+      window.removeEventListener('mouseup', mouseUpHandler);
+      if (activeTarget) {
+        cleanupTarget(activeTarget);
+      }
+      spinTl.current?.kill();
+      document.body.style.cursor = originalCursor;
+      isActiveRef.current = false;
+      targetCornerPositionsRef.current = null;
+      activeStrengthRef.current.current = 0;
     };
-  }, [spinDuration, hideDefaultCursor, parallaxOn, hoverDuration, cursorColor, cursorColorOnTarget]);
+  }, [
+    targetSelector,
+    spinDuration,
+    moveCursor,
+    constants,
+    hideDefaultCursor,
+    isMobile,
+    hoverDuration,
+    parallaxOn,
+    cursorColor,
+    cursorColorOnTarget,
+  ]);
 
-  // ── Styles ────────────────────────────────────────────────────────────
-  const th   = BRACKET_TH;
-  const arm  = BRACKET_ARM;
-  const half = RETICLE_HALF;
+  useEffect(() => {
+    if (isMobile || !cursorRef.current || !spinTl.current) return;
+    if (spinTl.current.isActive()) {
+      spinTl.current.kill();
+      spinTl.current = gsap
+        .timeline({ repeat: -1 })
+        .to(cursorRef.current, { rotation: '+=360', duration: spinDuration, ease: 'none' });
+    }
+  }, [spinDuration, isMobile]);
 
-  const bBase: React.CSSProperties = {
-    position:    'absolute',
-    width:       arm,
-    height:      arm,
-    borderColor: cursorColor,
-    boxShadow:   `0 0 5px ${cursorColor}66`,
-  };
-
-  // Hover bracket spans: fixed positioning, initially off-screen/hidden
-  const hBase: React.CSSProperties = {
-    position:    'fixed',
-    width:       HOV_ARM,
-    height:      HOV_ARM,
-    opacity:     0,
-    pointerEvents: 'none',
-    zIndex:      99998,
-    borderColor: cursorColor,
-  };
+  if (isMobile) {
+    return null;
+  }
 
   return (
-    <>
-      {/* WRAPPER — translate only */}
+    <div
+      ref={cursorRef}
+      className="fixed top-0 left-0 w-0 h-0 pointer-events-none z-[9999]"
+      style={{ willChange: 'transform' }}
+    >
       <div
-        ref={wrapperRef}
-        aria-hidden
-        style={{
-          position: 'fixed',
-          top: 0, left: 0,
-          width: 0, height: 0,
-          pointerEvents: 'none',
-          zIndex: 99999,
-        }}
-      >
-        {/* INNER — rotate only */}
-        <div
-          ref={innerRef}
-          style={{
-            position: 'absolute',
-            width:  half * 2,
-            height: half * 2,
-            top:   -half,
-            left:  -half,
-          }}
-        >
-          {/* GRAPHIC — scale only */}
-          <div
-            ref={graphicRef}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              transformOrigin: '50% 50%',
-            }}
-          >
-            {/* Top-left */}
-            <span style={{ ...bBase, top: 0, left: 0,
-              borderTopWidth: th, borderTopStyle: 'solid',
-              borderLeftWidth: th, borderLeftStyle: 'solid',
-              borderRightWidth: 0, borderBottomWidth: 0 }} />
-            {/* Top-right */}
-            <span style={{ ...bBase, top: 0, right: 0,
-              borderTopWidth: th, borderTopStyle: 'solid',
-              borderRightWidth: th, borderRightStyle: 'solid',
-              borderLeftWidth: 0, borderBottomWidth: 0 }} />
-            {/* Bottom-left */}
-            <span style={{ ...bBase, bottom: 0, left: 0,
-              borderBottomWidth: th, borderBottomStyle: 'solid',
-              borderLeftWidth: th, borderLeftStyle: 'solid',
-              borderTopWidth: 0, borderRightWidth: 0 }} />
-            {/* Bottom-right */}
-            <span style={{ ...bBase, bottom: 0, right: 0,
-              borderBottomWidth: th, borderBottomStyle: 'solid',
-              borderRightWidth: th, borderRightStyle: 'solid',
-              borderTopWidth: 0, borderLeftWidth: 0 }} />
-            {/* Center dot */}
-            <span
-              className="tc-dot"
-              style={{
-                position:     'absolute',
-                top: '50%', left: '50%',
-                width: 3, height: 3,
-                marginTop: -1.5, marginLeft: -1.5,
-                borderRadius: '50%',
-                background:  cursorColor,
-                boxShadow:   `0 0 5px ${cursorColor}`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* HOVER BRACKETS — four independent fixed spans */}
-      {/* Top-left */}
-      <span ref={hTLRef} aria-hidden style={{ ...hBase,
-        borderTopWidth: th, borderTopStyle: 'solid',
-        borderLeftWidth: th, borderLeftStyle: 'solid',
-        borderRightWidth: 0, borderBottomWidth: 0 }} />
-      {/* Top-right */}
-      <span ref={hTRRef} aria-hidden style={{ ...hBase,
-        borderTopWidth: th, borderTopStyle: 'solid',
-        borderRightWidth: th, borderRightStyle: 'solid',
-        borderLeftWidth: 0, borderBottomWidth: 0 }} />
-      {/* Bottom-left */}
-      <span ref={hBLRef} aria-hidden style={{ ...hBase,
-        borderBottomWidth: th, borderBottomStyle: 'solid',
-        borderLeftWidth: th, borderLeftStyle: 'solid',
-        borderTopWidth: 0, borderRightWidth: 0 }} />
-      {/* Bottom-right */}
-      <span ref={hBRRef} aria-hidden style={{ ...hBase,
-        borderBottomWidth: th, borderBottomStyle: 'solid',
-        borderRightWidth: th, borderRightStyle: 'solid',
-        borderTopWidth: 0, borderLeftWidth: 0 }} />
-    </>
+        ref={dotRef}
+        className="absolute top-1/2 left-1/2 w-1 h-1 rounded-full -translate-x-1/2 -translate-y-1/2"
+        style={{ willChange: 'transform', backgroundColor: cursorColor }}
+      />
+      <div
+        className="target-cursor-corner absolute top-1/2 left-1/2 w-3 h-3 border-[3px] -translate-x-[150%] -translate-y-[150%] border-r-0 border-b-0"
+        style={{ willChange: 'transform', borderColor: cursorColor }}
+      />
+      <div
+        className="target-cursor-corner absolute top-1/2 left-1/2 w-3 h-3 border-[3px] translate-x-1/2 -translate-y-[150%] border-l-0 border-b-0"
+        style={{ willChange: 'transform', borderColor: cursorColor }}
+      />
+      <div
+        className="target-cursor-corner absolute top-1/2 left-1/2 w-3 h-3 border-[3px] translate-x-1/2 translate-y-1/2 border-l-0 border-t-0"
+        style={{ willChange: 'transform', borderColor: cursorColor }}
+      />
+      <div
+        className="target-cursor-corner absolute top-1/2 left-1/2 w-3 h-3 border-[3px] -translate-x-[150%] translate-y-1/2 border-r-0 border-t-0"
+        style={{ willChange: 'transform', borderColor: cursorColor }}
+      />
+    </div>
   );
-}
+};
+
+export default TargetCursor;
