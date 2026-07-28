@@ -33,7 +33,7 @@ export default function LoadingScreen({ onEnter }: { onEnter: () => void }) {
     let target = 0;
     let current = 0;
     let lastStep = performance.now();
-    let nextDelay = 90;
+    let nextDelay = 80;
 
     const tick = (now: number) => {
       if (now - lastStep >= nextDelay && target < 100) {
