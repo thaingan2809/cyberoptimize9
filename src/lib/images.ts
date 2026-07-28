@@ -33,7 +33,7 @@ export const IMAGES = {
 
   // Crew Database — 8 classified files (custom artwork)
   crew: {
-    rebecca: 'https://ik.imagekit.io/zznoau6lx/20554e356cc5d2aa70e5fc880535bf18.webp',
+    rebecca: 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/rebecca.webp',
     maine: 'https://ik.imagekit.io/zznoau6lx/d9d371de7501def548f18eb5349bebbb.webp',
     kiwi: 'https://ik.imagekit.io/zznoau6lx/fd4f1562a41cf38f05527f8e62d63fde.webp',
     dorio: 'https://ik.imagekit.io/zznoau6lx/5ea2fd030cf5b1673fe02b9ab11af75f.webp',
