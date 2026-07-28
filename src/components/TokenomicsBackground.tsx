@@ -1,9 +1,40 @@
+import { useEffect, useRef, useState } from 'react';
+
 const BG_IMAGE =
-  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11495540.webp?updatedAt=1785220974249';
+  'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/wp11539425.webp?updatedAt=1785220971914';
 
 export default function TokenomicsBackground() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const section = el.closest('section');
+    if (!section) return;
+
+    const obs = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+    );
+    obs.observe(section);
+    return () => obs.disconnect();
+  }, []);
+
   return (
-    <div className="tokenomics-bg" aria-hidden>
+    <div
+      ref={rootRef}
+      className="tokenomics-bg"
+      aria-hidden
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: -1,
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 0.6s ease',
+        pointerEvents: 'none',
+        userSelect: 'none',
+      }}
+    >
       <img
         src={BG_IMAGE}
         alt=""
