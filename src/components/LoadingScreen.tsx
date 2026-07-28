@@ -63,7 +63,7 @@ else
     nextDelay = 54 + Math.random() * 90;
       }
 
-      current += (target - current) * 0.20;
+      current += (target - current) * 0.23;
       if (target >= 100 && current > 99.95) current = 100;
 
       setProgress(current);
