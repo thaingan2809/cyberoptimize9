@@ -78,7 +78,7 @@ export default function Footer() {
             or the Cyberpunk franchise. We're just cybers who love the vibe. DYOR. Stay chrome.
           </p>
           <div className="mt-6 font-display text-sm font-bold tracking-widest text-cyber-yellow animate-flicker">
-            $CYBER © 2077 — NIGHT CITY
+            $CYBERCOIN @ 2077 — NIGHT CITY
           </div>
         </div>
       </div>
