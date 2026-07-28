@@ -117,7 +117,7 @@ export default function About() {
   autoPlay
   muted
   loop
-  preload="none"
+  preload="metadata"
   className="h-full w-full object-cover"
   style={{
     filter: 'contrast(1.1) saturate(1.15) brightness(0.78)',
