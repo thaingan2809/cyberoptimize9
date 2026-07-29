@@ -39,28 +39,28 @@ export default function LoadingScreen({ onEnter }: { onEnter: () => void }) {
       if (now - lastStep >= nextDelay && target < 100) {
         lastStep = now;
         let inc: number;
-        if (target < 35) inc = 7 + Math.random() * 8;
-        else if (target < 50) inc = 1.5 + Math.random() * 2.5;
-        else if (target < 72) inc = 5 + Math.random() * 6;
-        else if (target < 78) inc = 0.6 + Math.random() * 1.2;
-        else inc = 4 + Math.random() * 7;
+        if (target < 35) inc = 8.05 + Math.random() * 9.2;
+        else if (target < 50) inc = 1.73 + Math.random() * 2.88;
+        else if (target < 72) inc = 5.75 + Math.random() * 6.9;
+        else if (target < 78) inc = 0.69 + Math.random() * 1.38;
+        else inc = 4.6 + Math.random() * 8.05;
 
         target = Math.min(100, target + inc);
 
        if (target < 35)
-    nextDelay = 50 + Math.random() * 63;
+    nextDelay = 42.5 + Math.random() * 53.55;
 
 else if (target < 50)
-    nextDelay = 235 + Math.random() * 288;
+    nextDelay = 199.75 + Math.random() * 244.8;
 
 else if (target < 72)
-    nextDelay = 72 + Math.random() * 108;
+    nextDelay = 61.2 + Math.random() * 91.8;
 
 else if (target < 78)
-    nextDelay = 378 + Math.random() * 342;
+    nextDelay = 321.3 + Math.random() * 290.7;
 
 else
-    nextDelay = 54 + Math.random() * 90;
+    nextDelay = 45.9 + Math.random() * 76.5;
       }
 
       current += (target - current) * 0.23;
