@@ -2,7 +2,6 @@ import { useEffect, useRef, memo } from 'react';
 import type { CSSProperties } from 'react';
 import { useCameraScroll } from '@/lib/cameraController';
 import { useCrewBoot } from '@/lib/useCrewBoot';
-import gsap from 'gsap';
 import { IMAGES } from '@/lib/images';
 import TrueFocus from '@/components/TrueFocus';
 
@@ -628,46 +627,15 @@ export default function CrewDatabase({ booted = true }: { booted?: boolean }) {
    Keeps the image at exactly the same size/position; only adds the shell.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Injected once. Only LED pulse + subtle holo border pulse animate.
-   All other effects are static — premium frame without GPU cost. */
+/* Injected once. All decorative animations removed — premium static frame. */
 function CrewFXStyles() {
   return (
     <style>{`
 /* ── Scene GPU layers — kept resident on ALL scenes so reverse scroll
-   never triggers texture re-upload. Inactive scenes only pause
-   animations (rules below), they are never hidden or unpainted. ── */
+   never triggers texture re-upload. ── */
 .crew-scene { will-change: transform, opacity; }
 
-/* ── The only infinite animations kept ── */
-@keyframes crewLedPulse {
-  0%,100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-@keyframes crewHoloGlow {
-  0%,100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-@keyframes crewFileLed {
-  0%,100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-@keyframes crewCursorBlink {
-  0%, 48% { opacity: 0.85; }
-  50%, 100% { opacity: 0; }
-}
-
-/* ── Scanlines moved to pseudo-element on the image well (saves 7 divs) ── */
-.crew-card-well::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0,0,0,0.32) 2px, rgba(0,0,0,0.32) 3px);
-  opacity: 0.22;
-  mix-blend-mode: multiply;
-  pointer-events: none;
-}
-
-/* ── Bolt — screw slot moved to pseudo-element (saves 7 inner divs) ── */
+/* ── Bolt — screw slot via pseudo-element ── */
 .crew-bolt {
   position: absolute;
   display: flex;
@@ -687,7 +655,7 @@ function CrewFXStyles() {
   transform: rotate(45deg);
 }
 
-/* ── Corner brackets — single element with 4 corner gradients (saves 21 divs) ── */
+/* ── Corner brackets — single element with 4 corner gradients ── */
 .crew-brackets {
   position: absolute;
   inset: 0;
@@ -705,26 +673,18 @@ function CrewFXStyles() {
     linear-gradient(#00f0ff, #00f0ff) right 8px bottom 8px / 16px 2px no-repeat;
 }
 
-/* ── Holographic edge glow — static box-shadow, only opacity breathes ── */
-.crew-holo { position:absolute; inset:0; border:1px solid rgba(0,240,255,0.28); box-shadow: 0 0 18px rgba(0,240,255,0.24), inset 0 0 16px rgba(0,240,255,0.11); animation: crewHoloGlow 5s ease-in-out infinite; pointer-events:none; }
+/* ── Holographic edge glow — static ── */
+.crew-holo { position:absolute; inset:0; border:1px solid rgba(0,240,255,0.28); box-shadow: 0 0 18px rgba(0,240,255,0.24), inset 0 0 16px rgba(0,240,255,0.11); pointer-events:none; }
 
-/* ── Animations — paused on inactive scenes, running only on active ── */
-.crew-led { box-shadow: 0 0 5px currentColor; animation: crewLedPulse 2s ease-in-out infinite; }
+/* ── Static indicator LEDs ── */
+.crew-led { box-shadow: 0 0 5px currentColor; }
 .crew-file-led {
   width: 5px; height: 5px; border-radius: 9999px;
   background: #00f0ff;
   box-shadow: 0 0 4px rgba(0,240,255,0.6);
-  animation: crewFileLed 2.6s ease-in-out infinite;
 }
 
-/* When a scene is not active, freeze all animations to save GPU. */
-.crew-scene-inactive .crew-led,
-.crew-scene-inactive .crew-holo,
-.crew-scene-inactive .crew-file-led {
-  animation-play-state: paused;
-}
-
-/* ── Static text gradients (shimmer/flow animations removed) ── */
+/* ── Static text gradients ── */
 .crew-codename {
   background: linear-gradient(100deg,
     rgba(0,240,255,0.45) 0%,
@@ -752,7 +712,7 @@ function CrewFXStyles() {
   position: relative;
 }
 
-/* ── Static divider (sweep animation removed) ── */
+/* ── Static divider ── */
 .crew-divider {
   position: relative;
   height: 1px;
@@ -761,31 +721,16 @@ function CrewFXStyles() {
   background: linear-gradient(90deg, transparent, rgba(0,240,255,0.45), transparent);
 }
 
+/* ── Static cursor ── */
 .crew-cursor::after {
   content: '▌';
   margin-left: 5px;
   color: rgba(0,240,255,0.7);
-  animation: crewCursorBlink 1.3s steps(1) infinite;
 }
-.crew-scene-inactive .crew-cursor::after { animation-play-state: paused; }
 
-/* ── Mobile-only compositor optimizations (pointer: coarse).
-   Desktop never matches these queries, so its visuals are untouched. ── */
+/* ── Mobile-only compositor optimizations (pointer: coarse). ── */
 @media (pointer: coarse) {
-  /* Release inactive scene compositor layers to free mobile GPU memory.
-     Active scenes (without .crew-scene-inactive) keep the base
-     will-change: transform, opacity from the .crew-scene rule above. */
   .crew-scene-inactive { will-change: auto; }
-
-  /* Replace blend-mode multiply with a plain semi-transparent overlay —
-     avoids per-frame blend compositing on 7 scenes. */
-  .crew-card-well::after {
-    mix-blend-mode: normal;
-    background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0,0,0,0.4) 2px, rgba(0,0,0,0.4) 3px);
-  }
-
-  /* Replace per-frame filter: drop-shadow with a static box-shadow —
-     painted once into the layer texture, no per-frame filter pass. */
   .crew-brackets {
     filter: none;
     box-shadow: 0 0 6px rgba(0,240,255,0.5);
@@ -795,66 +740,16 @@ function CrewFXStyles() {
   );
 }
 
-/* Random micro-glitch + brief RGB split on the portrait image only.
-   Fires every 6–12s, lasts 100–150ms. Only runs while the scene is active
-   (no crew-scene-inactive class on an ancestor). No React re-renders, no layout. */
-function useCyberGlitch(imgRef: React.RefObject<HTMLImageElement | null>) {
-  useEffect(() => {
-    // drop-shadow filter animations force expensive per-frame repaints on
-    // mobile GPUs; the glitch is a desktop-only flourish.
-    if (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) return;
-    const img = imgRef.current;
-    if (!img) return;
-    let killed = false;
-    let to: ReturnType<typeof setTimeout>;
-    const fire = () => {
-      if (killed) return;
-      // Skip glitch entirely if the scene is not in the active window.
-      const scene = img.closest('[data-crew-scene]');
-      if (scene && scene.classList.contains('crew-scene-inactive')) {
-        to = setTimeout(fire, 4000);
-        return;
-      }
-      const dur = 0.1 + Math.random() * 0.05; // 100–150ms
-      const tx = (Math.random() - 0.5) * 5;
-      const tl = gsap.timeline({ onComplete: () => gsap.set(img, { filter: 'none', x: 0 }) });
-      tl.fromTo(
-        img,
-        { filter: 'drop-shadow(3px 0 #ff003c) drop-shadow(-3px 0 #00f0ff)' },
-        { filter: 'drop-shadow(0px 0 rgba(255,0,60,0)) drop-shadow(0px 0 rgba(0,240,255,0))', duration: dur, ease: 'power2.out' },
-      );
-      tl.to(img, { x: tx, duration: dur * 0.5, ease: 'power2.out', yoyo: true, repeat: 1 }, 0);
-      to = setTimeout(fire, 6000 + Math.random() * 6000);
-    };
-    to = setTimeout(fire, 6000 + Math.random() * 6000);
-    return () => {
-      killed = true;
-      clearTimeout(to);
-      gsap.killTweensOf(img);
-    };
-  }, [imgRef]);
-}
-
 const CyberFrame = memo(function CyberFrame({ member, index }: { member: CrewMember; index: number }) {
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  useCyberGlitch(imgRef);
-
-  // Precomputed animation delays — avoids creating a closure every render.
-  const d0 = `${(index * 0.7).toFixed(2)}s`;
-  const d01 = `${(index * 0.7 + 0.1).toFixed(2)}s`;
-  const d05 = `${(index * 0.7 + 0.5).toFixed(2)}s`;
-  const d09 = `${(index * 0.7 + 0.9).toFixed(2)}s`;
-
   return (
     <div className="relative h-full w-full">
       {/* Thick dark metallic outer shell with bevel */}
       <div className="absolute inset-0" style={OUTER_SHELL_STYLE}>
         {/* Inner layered border — metallic mid plate */}
         <div className="absolute" style={MID_PLATE_STYLE}>
-          {/* Image well — scanlines now via ::after pseudo-element */}
+          {/* Image well */}
           <div className="crew-card-well absolute overflow-hidden" style={IMAGE_WELL_STYLE}>
             <img
-              ref={imgRef}
               src={member.img}
               alt={member.name}
               className="h-full w-full object-cover object-top"
@@ -890,17 +785,17 @@ const CyberFrame = memo(function CyberFrame({ member, index }: { member: CrewMem
           <div className="crew-bolt" style={{ bottom: '10px', left: '10px' }} />
           <div className="crew-bolt" style={{ bottom: '10px', right: '10px' }} />
 
-          {/* Indicator LEDs (only animated elements kept) */}
-          <div className="crew-led absolute" style={{ top: '26px', left: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#00f0ff', background: '#00f0ff', animationDelay: d01 }} />
-          <div className="crew-led absolute" style={{ top: '26px', right: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#ffe600', background: '#ffe600', animationDelay: d05 }} />
-          <div className="crew-led absolute" style={{ bottom: '26px', left: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#ff2d2d', background: '#ff2d2d', animationDelay: d09 }} />
+          {/* Indicator LEDs (static) */}
+          <div className="crew-led absolute" style={{ top: '26px', left: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#00f0ff', background: '#00f0ff' }} />
+          <div className="crew-led absolute" style={{ top: '26px', right: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#ffe600', background: '#ffe600' }} />
+          <div className="crew-led absolute" style={{ bottom: '26px', left: '14px', width: '5px', height: '5px', borderRadius: '9999px', color: '#ff2d2d', background: '#ff2d2d' }} />
 
           {/* Yellow industrial warning stripes — top + bottom edges (merged static) */}
           <div className="pointer-events-none absolute" style={TOP_STRIPE_STYLE} />
           <div className="pointer-events-none absolute" style={BOTTOM_STRIPE_STYLE} />
 
-          {/* Holographic edge glow (subtle pulse — only animation kept besides LEDs) */}
-          <div className="crew-holo" style={{ animationDelay: d0 }} />
+          {/* Holographic edge glow (static) */}
+          <div className="crew-holo" />
         </div>
       </div>
     </div>
