@@ -39,7 +39,7 @@ export const IMAGES = {
     dorio: 'https://ik.imagekit.io/zznoau6lx/5ea2fd030cf5b1673fe02b9ab11af75f.webp',
     pilar: 'https://ik.imagekit.io/zznoau6lx/cosplaying-as-pilar-v0-og7cwrxlec1e1.webp',
     david: 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/david2.webp',
-    lucy: 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/test/wp11496855_mPEmctV-P%20(1).webp',
+    lucy: 'https://ik.imagekit.io/zznoau6lx/Cybercoin%20webp/2/test/this.webp',
   },
 
   roadmapBg: px(10591995, 'street-in-city-at-night-after-rain', 1600),
